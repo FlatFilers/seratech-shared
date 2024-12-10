@@ -1,21 +1,25 @@
-import FlatfileListener, { FlatfileEvent } from "@flatfile/listener";
-import { configureSpace } from "@flatfile/plugin-space-configure";
-import { jobHandler } from "@flatfile/plugin-job-handler";
-import { customers, invoices, locations } from "./blueprints/sheets";
-import autoFix from "./jobs/autoFix";
-import { FlatfileRecord, bulkRecordHook } from "@flatfile/plugin-record-hook";
-import getAddresses from "./jobs/getAddresses";
-import generateCustIds from "./jobs/generateCustIds";
-import mergeRecords from "./jobs/mergeRecords";
 import api from "@flatfile/api";
-import path from "node:path";
+import FlatfileListener from "@flatfile/listener";
+import { dedupePlugin } from "@flatfile/plugin-dedupe";
+import { jobHandler } from "@flatfile/plugin-job-handler";
+import { FlatfileRecord, bulkRecordHook } from "@flatfile/plugin-record-hook";
+import { configureSpace } from "@flatfile/plugin-space-configure";
+import { processRecords } from "@flatfile/util-common";
+import { stringify } from "csv-stringify/sync";
 import * as fs from "node:fs";
-import { stringify } from 'csv-stringify/sync'
-import { processRecords } from '@flatfile/util-common'
+import path from "node:path";
+import { addresses, customers, invoices, locations } from "./blueprints/sheets";
+import autoFix from "./jobs/autoFix";
+import generateCustIds from "./jobs/generateCustIds";
+import getAddresses from "./jobs/getAddresses";
+import mergeRecords from "./jobs/mergeRecords";
+import { instrumentRequests } from "./instrument.requests";
+
+instrumentRequests();
 
 const leaveBlankFields = [
   "travelDuration",
-  "onJobDuration", 
+  "onJobDuration",
   "totalDuration",
   "email",
   "company",
@@ -33,23 +37,25 @@ const leaveBlankFields = [
   "segments",
   "hcJob",
   "tipAmount",
-  "onlineBookingSource"
+  "onlineBookingSource",
 ];
 const mustBeZeroFeilds = [
   "labor",
   "materials",
   "discount",
   "tax",
-  "taxableAmount"
-]
+  "taxableAmount",
+];
 
 export default function (listener: FlatfileListener) {
+  // listener.use(xlsxExtractorPlugin());
+  listener.use(dedupePlugin("dedupe", { on: "id" }));
   listener.use(
     configureSpace({
       workbooks: [
         {
           name: "Sera Workbook",
-          sheets: [customers, invoices, locations],
+          sheets: [customers, addresses, invoices, locations],
           actions: [
             {
               operation: "submitActionBg",
@@ -73,47 +79,52 @@ export default function (listener: FlatfileListener) {
           },
         },
       },
-    }),
+    })
   );
 
   listener.use(
     jobHandler("workbook:submitActionBg", async (event, tick) => {
       try {
-        await tick(10, "Starting Customers and Invoices download...")
+        await tick(10, "Starting Customers and Invoices download...");
 
         const { environmentId, spaceId, workbookId } = event.context;
-        console.log({environmentId, spaceId, workbookId});
+        console.log({ environmentId, spaceId, workbookId });
         const { data: sheets } = await api.sheets.list({ workbookId });
-        const customerSheet = sheets.find((sheet) => sheet.slug === "customers");
+        const customerSheet = sheets.find(
+          (sheet) => sheet.slug === "customers"
+        );
         const invoiceSheet = sheets.find((sheet) => sheet.slug === "invoices");
 
         const invFields = invoiceSheet.config.fields;
-        const invHeader = invFields.map((field) => field.key)
-        const invHeaderLabels = invFields.map((field) => field.label)
+        const invHeader = invFields.map((field) => field.key);
+        const invHeaderLabels = invFields.map((field) => field.label);
         const timestamp = new Date().toISOString();
 
         const invFileName = `${invoiceSheet.slug}-${timestamp}.csv`;
         const invFilePath = path.join("/tmp", invFileName);
 
-        await tick(20, "Writing Invoices CSV headers...")
+        await tick(20, "Writing Invoices CSV headers...");
         const invHeaderContent = stringify([invHeaderLabels], {
           delimiter: ",",
-        })
-        fs.writeFileSync(invFilePath, invHeaderContent)
+        });
+        fs.writeFileSync(invFilePath, invHeaderContent);
 
-        await tick(30, "Writing Invoices CSV rows...")
-        await processRecords(invoiceSheet.id, async (records, pageNumber, totalPageCount) => {
-          const rows = records.map((record) =>
-            invHeader.map((key) => record.values[key].value)
-          )
+        await tick(30, "Writing Invoices CSV rows...");
+        await processRecords(
+          invoiceSheet.id,
+          async (records, pageNumber, totalPageCount) => {
+            const rows = records.map((record) =>
+              invHeader.map((key) => record.values[key].value)
+            );
 
-          const invCsvContent = stringify(rows, {
-            delimiter: ",",
-          })
-          fs.appendFileSync(invFilePath, invCsvContent)
-        })
+            const invCsvContent = stringify(rows, {
+              delimiter: ",",
+            });
+            fs.appendFileSync(invFilePath, invCsvContent);
+          }
+        );
 
-        await tick(40, "Uploading Invoices CSV...")
+        await tick(40, "Uploading Invoices CSV...");
         const invReader = fs.createReadStream(invFilePath);
         const { data: invExportFile } = await api.files.upload(invReader, {
           spaceId,
@@ -121,33 +132,36 @@ export default function (listener: FlatfileListener) {
           mode: "export",
         });
 
-        await tick(50, "Writing Customers CSV headers...")
+        await tick(50, "Writing Customers CSV headers...");
         const custFields = customerSheet.config.fields;
-        const custHeader = custFields.map((field) => field.key)
-        const custHeaderLabels = custFields.map((field) => field.label)
+        const custHeader = custFields.map((field) => field.key);
+        const custHeaderLabels = custFields.map((field) => field.label);
 
         const custFileName = `${customerSheet.slug}-${timestamp}.csv`;
         const custFilePath = path.join("/tmp", custFileName);
 
-        await tick(60, "Writing Customers CSV headers...")
+        await tick(60, "Writing Customers CSV headers...");
         const custHeaderContent = stringify([custHeaderLabels], {
           delimiter: ",",
-        })
-        fs.writeFileSync(custFilePath, custHeaderContent)
+        });
+        fs.writeFileSync(custFilePath, custHeaderContent);
 
-        await tick(70, "Writing Customers CSV rows...")
-        await processRecords(customerSheet.id, async (records, pageNumber, totalPageCount) => {
-          const rows = records.map((record) =>
-            custHeader.map((key) => record.values[key].value)
-          )
+        await tick(70, "Writing Customers CSV rows...");
+        await processRecords(
+          customerSheet.id,
+          async (records, pageNumber, totalPageCount) => {
+            const rows = records.map((record) =>
+              custHeader.map((key) => record.values[key].value)
+            );
 
-          const custCsvContent = stringify(rows, {
-            delimiter: ",",
-          })
-          fs.appendFileSync(custFilePath, custCsvContent)
-        })
+            const custCsvContent = stringify(rows, {
+              delimiter: ",",
+            });
+            fs.appendFileSync(custFilePath, custCsvContent);
+          }
+        );
 
-        await tick(80, "Uploading Customers CSV...")
+        await tick(80, "Uploading Customers CSV...");
         const custReader = fs.createReadStream(custFilePath);
         const { data: custExportFile } = await api.files.upload(custReader, {
           spaceId,
@@ -155,14 +169,17 @@ export default function (listener: FlatfileListener) {
           mode: "export",
         });
 
-        await tick(90, "Successfully downloaded CSV files")
+        await tick(90, "Successfully downloaded CSV files");
 
         return {
           outcome: {
             message: `Successfully downloaded CSV files`,
             next: {
               type: "files",
-              files: [{ fileId: invExportFile.id }, { fileId: custExportFile.id }],
+              files: [
+                { fileId: invExportFile.id },
+                { fileId: custExportFile.id },
+              ],
             },
           },
         };
@@ -170,14 +187,14 @@ export default function (listener: FlatfileListener) {
         console.error("Error in submitActionBg job:", error);
         throw error;
       }
-    }),
+    })
   );
 
   listener.use(autoFix);
   listener.use(getAddresses);
   listener.use(generateCustIds);
   listener.use(mergeRecords);
-  
+
   listener.use(
     bulkRecordHook("invoices", (records: FlatfileRecord[]) => {
       records.map((record) => {
@@ -186,7 +203,8 @@ export default function (listener: FlatfileListener) {
         const finishedAt = record.get("finished") as string;
 
         const dateRegex = /([0-9]+\/[0-9]+\/[0-9][0-9] [0-2][0-9]:[0-5][0-9]$)/;
-        const finishedRegex = /([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-1][0-9]:[0-5][0-9](?:am|pm)$)/i;
+        const finishedRegex =
+          /([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-1][0-9]:[0-5][0-9](?:am|pm)$)/i;
 
         if (createdAt) {
           if (!dateRegex.test(createdAt)) {
@@ -200,7 +218,10 @@ export default function (listener: FlatfileListener) {
         }
         if (finishedAt) {
           if (!finishedRegex.test(finishedAt)) {
-            record.addError("finished", `Must be in yyyy-mm-dd hh:mmam/pm format`);
+            record.addError(
+              "finished",
+              `Must be in yyyy-mm-dd hh:mmam/pm format`
+            );
           }
         }
 
@@ -224,31 +245,21 @@ export default function (listener: FlatfileListener) {
 
         if (lookupFirstNameValue) {
           record.set("firstName", lookupFirstNameValue);
-          record.addInfo(
-            "firstName",
-            `firstName set based on customer.`
-          );
+          record.addInfo("firstName", `firstName set based on customer.`);
         }
 
         if (lookupLastNameValue) {
           record.set("lastName", lookupLastNameValue);
-          record.addInfo(
-            "lastName",
-            `lastName set based on customer.`
-          );
+          record.addInfo("lastName", `lastName set based on customer.`);
         }
 
         if (lookupLastEmailValue) {
           record.set("email", lookupLastEmailValue);
-          record.addInfo(
-            "email",
-            `email set based on customer.`
-          );
+          record.addInfo("email", `email set based on customer.`);
         }
 
         return record;
       });
-    }),
+    })
   );
-
 }

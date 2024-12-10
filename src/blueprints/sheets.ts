@@ -1,11 +1,88 @@
 import { Flatfile } from "@flatfile/api";
 import { states } from "./statesEnum";
-import { addressFields } from "./addressFields";
+
+export const addresses: Flatfile.SheetConfig = {
+  name: "Addresses",
+  slug: "addresses",
+  fields: [
+    {
+      key: "customerId",
+      type: "reference",
+      label: "Customer ID",
+      config: {
+        ref: "customers",
+        key: "id",
+        relationship: "has-one",
+      },
+      constraints: [
+        {
+          type: "required",
+        },
+      ],
+    },
+    {
+      key: "streetLine1",
+      type: "string",
+      label: "Street Line 1",
+    },
+    {
+      key: "streetLine2",
+      type: "string",
+      label: "Street Line 2",
+    },
+    {
+      key: "city",
+      type: "string",
+      label: "City",
+    },
+    {
+      key: "state",
+      type: "enum",
+      label: "State",
+      config: {
+        options: states,
+      },
+    },
+    {
+      key: "postalCode",
+      type: "string",
+      label: "Postal Code",
+    },
+    {
+      key: "isBilling",
+      type: "boolean",
+      label: "Is Billing Address",
+    },
+    {
+      key: "isPrimary",
+      type: "boolean",
+      label: "Is Primary Address",
+    },
+    {
+      key: "notes",
+      type: "string",
+      label: "Notes",
+    },
+  ],
+};
 
 export const customers: Flatfile.SheetConfig = {
   name: "Customers",
   slug: "customers",
   fields: [
+    {
+      key: "id",
+      type: "string",
+      label: "ID",
+      constraints: [
+        {
+          type: "required",
+        },
+        {
+          type: "unique",
+        },
+      ],
+    },
     {
       key: "firstName",
       type: "string",
@@ -67,23 +144,9 @@ export const customers: Flatfile.SheetConfig = {
       label: "Notes",
     },
     {
-      key: "id",
-      type: "string",
-      label: "ID",
-      constraints: [
-        {
-          type: "required",
-        },
-        {
-          type: "unique",
-        },
-      ],
-    },
-    {
       key: "customerType",
       type: "enum",
       label: "Customer Type",
-
       config: {
         allowCustom: false,
         options: [
@@ -117,14 +180,18 @@ export const customers: Flatfile.SheetConfig = {
       type: "string",
       label: "Lead Source",
     },
-    //@ts-ignore
-    ...addressFields,
   ],
   actions: [
     {
       operation: "getAddresses",
       mode: "background",
       label: "Get Addresses",
+      primary: true,
+    },
+    {
+      operation: "dedupe",
+      mode: "foreground",
+      label: "Deduplicate",
       primary: true,
     },
     {
