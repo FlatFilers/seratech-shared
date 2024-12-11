@@ -14,6 +14,9 @@ export const addresses: Flatfile.SheetConfig = {
         key: "id",
         relationship: "has-one",
       },
+      metadata: {
+        is_dedupe_field: true,
+      },
       constraints: [
         {
           type: "required",
@@ -66,12 +69,7 @@ export const addresses: Flatfile.SheetConfig = {
     {
       key: "isBilling",
       type: "boolean",
-      label: "Is Billing Address",
-    },
-    {
-      key: "isPrimary",
-      type: "boolean",
-      label: "Is Primary Address",
+      label: "Billing?",
     },
     {
       key: "notes",

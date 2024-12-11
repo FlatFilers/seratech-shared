@@ -196,7 +196,22 @@ export class ExportCsvWorker extends WorkbookJobWorker {
         const [, aIndex] = a.match(/^Address_(\d+)/) || [];
         const [, bIndex] = b.match(/^Address_(\d+)/) || [];
         const indexDiff = parseInt(aIndex) - parseInt(bIndex);
-        return indexDiff !== 0 ? indexDiff : a.localeCompare(b);
+        if (indexDiff !== 0) return indexDiff;
+
+        // Find the field labels without the Address_N prefix
+        const aField = a.replace(/^Address_\d+\s/, "");
+        const bField = b.replace(/^Address_\d+\s/, "");
+
+        // Find the position of these fields in the original template
+        const aPosition = processedAddressFields.findIndex(
+          (f) => f.label === aField
+        );
+        const bPosition = processedAddressFields.findIndex(
+          (f) => f.label === bField
+        );
+
+        // Sort by the original template order
+        return aPosition - bPosition;
       }),
     ];
 

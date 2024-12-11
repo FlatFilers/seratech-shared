@@ -50,6 +50,8 @@ export class MergeWorker extends SheetJobWorker {
 
     const keys = overrideKeys ? overrideKeys : mergeFieldKeys;
 
+    console.log("keys", keys);
+
     const { duplicateRecords, mergedRecords } = mergeData(records, keys);
     return { duplicateRecords, mergedRecords };
   }
