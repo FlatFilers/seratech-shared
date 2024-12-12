@@ -7,7 +7,7 @@ import api from "@flatfile/api";
 import path from "path";
 import os from "os";
 import fs from "fs";
-import * as XLSX from 'xlsx';
+import * as XLSX from "xlsx";
 
 @TriggeredBy("export-xlsx")
 export class ExportXlsxWorker extends WorkbookJobWorker {
@@ -60,48 +60,35 @@ export class ExportXlsxWorker extends WorkbookJobWorker {
     // Format data as array of arrays (including headers)
     const formattedData = [
       headers,
-      ...data.map((row) =>
-        headers.map((header) => this.escapeCsvValue(row[header]))
-      ),
+      ...data.map((row) => headers.map((header) => row[header] ?? "")),
     ];
-    
+
     // Create Excel workbook and worksheet
     const worksheet = XLSX.utils.aoa_to_sheet(formattedData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
-    
-    const fileName = `${type}_export_${new Date().toISOString().split("T")[0]}.xlsx`;
-    const tempDir = path.join(process.cwd(), 'tmp');
-    
+
+    const fileName = `${type}_export_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+    const tempDir = os.tmpdir();
+
     // Ensure tmp directory exists
     if (!fs.existsSync(tempDir)) {
       fs.mkdirSync(tempDir, { recursive: true });
     }
-    
+
     const tempFilePath = path.join(tempDir, fileName);
-    
+
     // Write Excel file
-    const buffer = XLSX.write(workbook, { 
-      type: 'buffer',
-      bookType: 'xlsx',
-      bookSST: false
+    const buffer = XLSX.write(workbook, {
+      type: "buffer",
+      bookType: "xlsx",
+      bookSST: false,
     });
     fs.writeFileSync(tempFilePath, buffer);
-    
-    return tempFilePath;
-  }
 
-  private escapeCsvValue(value: any): string {
-    if (value === null || value === undefined) {
-      return "";
-    }
-    if (
-      typeof value === "string" &&
-      (value.includes(",") || value.includes('"'))
-    ) {
-      return `"${value.replace(/"/g, '""')}"`;
-    }
-    return String(value);
+    return tempFilePath;
   }
 
   private async getSheetConfig(sheetId: string) {
@@ -238,4 +225,4 @@ export class ExportXlsxWorker extends WorkbookJobWorker {
 
     return { data, headers };
   }
-} 
+}
