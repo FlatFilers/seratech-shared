@@ -7,9 +7,11 @@ export default jobHandler("sheet:generateCustIds", async ({ context }, tick) => 
 
   try {
     const updates = [];
-    const delete_ids = [];
 
     const records = await Simplified.getAllRecords(sheetId);
+    const { data: job } = await api.jobs.get(jobId);
+    const input = job.input;
+    const name = input.name;
 
     records.forEach((record) => {
       const newRecord: Record<string, any> = { _id: record._id };
@@ -30,7 +32,7 @@ export default jobHandler("sheet:generateCustIds", async ({ context }, tick) => 
         };
         
         // Get first 5 chars of firstName and convert to numpad numbers
-        const baseId = firstName.toLowerCase().slice(0,5)
+        const baseId = name.toLowerCase().slice(0,5)
           .split('')
           .map(c => numpadMap[c] || '0')
           .join('');
