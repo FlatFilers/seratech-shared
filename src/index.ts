@@ -10,7 +10,7 @@ import mergeRecords from "./jobs/mergeRecords";
 import { TransposeColumns, transposeHook } from "./jobs/transpose";
 import { TransposeExecute } from "./jobs/transpose-execute";
 import { MergeWorker } from "./support/dedupe-records";
-import { ExportCsvWorker } from "./support/export-csv.worker";
+import { ExportXlsxWorker } from "./support/export-xlsx.worker";
 import { instrumentRequests } from "./support/instrument.requests";
 import "./support/requests/records/global.collect.macros";
 import { worker } from "./support/utils/job.worker";
@@ -50,7 +50,7 @@ const mustBeZeroFeilds = [
 export default function (listener: FlatfileListener) {
   listener.use(xlsxExtractorPlugin());
   listener.use(worker(MergeWorker));
-  listener.use(worker(ExportCsvWorker));
+  listener.use(worker(ExportXlsxWorker));
 
   listener.use(transposeHook);
   listener.use(worker(TransposeColumns));
@@ -64,7 +64,7 @@ export default function (listener: FlatfileListener) {
           sheets: [customers, addresses, invoices],
           actions: [
             {
-              operation: "export-csv",
+              operation: "export-xlsx",
               mode: "foreground",
               label: "Download",
               primary: true,

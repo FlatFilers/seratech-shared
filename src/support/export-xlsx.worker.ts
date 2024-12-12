@@ -7,15 +7,16 @@ import api from "@flatfile/api";
 import path from "path";
 import os from "os";
 import fs from "fs";
+import * as XLSX from 'xlsx';
 
-@TriggeredBy("export-csv")
-export class ExportCsvWorker extends WorkbookJobWorker {
+@TriggeredBy("export-xlsx")
+export class ExportXlsxWorker extends WorkbookJobWorker {
   async execute(): Promise<void | JobOutcome> {
     const records = await safe.records.stream({
       workbookId: this.workbookId,
     });
 
-    // Generate both CSV files
+    // Generate both files
     const customerExport = await this.generateCsvFile(
       "customers",
       await this.prepareData(records)
@@ -32,7 +33,7 @@ export class ExportCsvWorker extends WorkbookJobWorker {
     ]);
 
     return {
-      message: `Successfully downloaded CSV files`,
+      message: `Successfully downloaded Excel files`,
       next: {
         type: "files",
         files: [{ fileId: custExportFile.id }, { fileId: invExportFile.id }],
@@ -56,32 +57,51 @@ export class ExportCsvWorker extends WorkbookJobWorker {
     type: string,
     { data, headers }: { data: Record<string, any>[]; headers: string[] }
   ): Promise<string> {
-    const csvContent = this.convertToCsv(data, headers);
-    const fileName = `${type}_export_${
-      new Date().toISOString().split("T")[0]
-    }.csv`;
-    const tempFilePath = path.join(os.tmpdir(), fileName);
-    fs.writeFileSync(tempFilePath, csvContent);
+    // Format data as array of arrays (including headers)
+    const formattedData = [
+      headers,
+      ...data.map((row) =>
+        headers.map((header) => this.escapeCsvValue(row[header]))
+      ),
+    ];
+    
+    // Create Excel workbook and worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(formattedData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+    
+    const fileName = `${type}_export_${new Date().toISOString().split("T")[0]}.xlsx`;
+    const tempDir = path.join(process.cwd(), 'tmp');
+    
+    // Ensure tmp directory exists
+    if (!fs.existsSync(tempDir)) {
+      fs.mkdirSync(tempDir, { recursive: true });
+    }
+    
+    const tempFilePath = path.join(tempDir, fileName);
+    
+    // Write Excel file
+    const buffer = XLSX.write(workbook, { 
+      type: 'buffer',
+      bookType: 'xlsx',
+      bookSST: false
+    });
+    fs.writeFileSync(tempFilePath, buffer);
+    
     return tempFilePath;
   }
 
-  private convertToCsv(data: Record<string, any>[], headers: string[]): string {
-    return [
-      headers.join(","),
-      ...data.map((row) =>
-        headers.map((header) => this.escapeCsvValue(row[header])).join(",")
-      ),
-    ].join("\n");
-  }
-
   private escapeCsvValue(value: any): string {
+    if (value === null || value === undefined) {
+      return "";
+    }
     if (
       typeof value === "string" &&
       (value.includes(",") || value.includes('"'))
     ) {
       return `"${value.replace(/"/g, '""')}"`;
     }
-    return value ?? "";
+    return String(value);
   }
 
   private async getSheetConfig(sheetId: string) {
@@ -97,6 +117,7 @@ export class ExportCsvWorker extends WorkbookJobWorker {
       ),
     };
   }
+
   private async prepareInvoicesData(records: Collection<Item>) {
     const invoiceRecords = records.forSheet("invoices");
 
@@ -217,4 +238,4 @@ export class ExportCsvWorker extends WorkbookJobWorker {
 
     return { data, headers };
   }
-}
+} 
