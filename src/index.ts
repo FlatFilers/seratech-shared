@@ -94,6 +94,41 @@ export default function (listener: FlatfileListener) {
   listener.use(mergeRecords);
 
   listener.use(
+    bulkRecordHook("addresses", (records: FlatfileRecord[]) => {
+      records.map((record) => {
+        const isBilling = record.get("isBilling") as string;
+
+        if (isBilling && isBilling === "Billing") {
+          record.set("isBilling", true);
+        } else {
+          record.set("isBilling", null);
+        }
+
+        return record;
+      });
+    })
+  );
+
+  listener.use(
+    bulkRecordHook("customers", (records: FlatfileRecord[]) => {
+      records.map((record) => {
+        const displayName = record.get("displayName") as string;
+
+        if (displayName) {
+          const nameParts = displayName.split(' ');
+          if (nameParts.length > 0) {
+            record.set("firstName", nameParts[0]);
+            if (nameParts.length > 1) {
+              record.set("lastName", nameParts.slice(1).join(' '));
+            }
+          }
+        }
+        return record;
+      });
+    })
+  );
+
+  listener.use(
     bulkRecordHook("invoices", (records: FlatfileRecord[]) => {
       records.map((record) => {
         const createdAt = record.get("createdAt") as string;

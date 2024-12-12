@@ -241,6 +241,17 @@ export const customers: Flatfile.SheetConfig = {
       mode: "background",
       label: "Generate IDs",
       primary: true,
+      inputForm: {
+        type: "simple",
+        fields: [
+          {
+            type: "string",
+            key: "name",
+            label: "Name",
+            description: "What name would you like to use to generate the IDs?",
+          },
+        ],
+      },    
     },
   ],
 };
