@@ -14,6 +14,7 @@ import { ExportXlsxWorker } from "./support/export-xlsx.worker";
 import { instrumentRequests } from "./support/instrument.requests";
 import "./support/requests/records/global.collect.macros";
 import { worker } from "./support/utils/job.worker";
+import { generateIdsPlugin, GenerateIdsJob } from "./jobs/preProGenerateIds";
 
 instrumentRequests();
 
@@ -55,6 +56,9 @@ export default function (listener: FlatfileListener) {
   listener.use(transposeHook);
   listener.use(worker(TransposeColumns));
   listener.use(worker(TransposeExecute));
+
+  listener.use(worker(GenerateIdsJob));
+  listener.use(generateIdsPlugin());
 
   listener.use(
     configureSpace({
@@ -112,10 +116,12 @@ export default function (listener: FlatfileListener) {
   listener.use(
     bulkRecordHook("customers", (records: FlatfileRecord[]) => {
       records.map((record) => {
+        // Handle display name and name splitting
         const displayName = record.get("displayName") as string;
-
         if (displayName) {
-          const nameParts = displayName.split(' ');
+          const trimmedName = displayName.trim();
+          record.set("displayName", trimmedName);
+          const nameParts = trimmedName.split(' ');
           if (nameParts.length > 0) {
             record.set("firstName", nameParts[0]);
             if (nameParts.length > 1) {
@@ -123,6 +129,32 @@ export default function (listener: FlatfileListener) {
             }
           }
         }
+
+        // Handle phone numbers
+        const mobileNumber = record.get("mobileNumber") as string;
+        console.log({mobileNumber})
+        if (mobileNumber) {
+          // Split by comma and map to array of phone numbers or null
+          const phoneNumbers = mobileNumber.split(',')
+            .map(num => {
+              const trimmed = num.trim();
+              return trimmed && trimmed !== ',' ? trimmed : null;
+            })
+            .filter(num => num !== undefined); // Keep null values but remove undefined
+
+          // Find first two available numbers
+          const validNumbers = phoneNumbers.filter(num => num !== null);
+          
+          if (validNumbers.length > 0) {
+            record.set("mobileNumber", validNumbers[0]);
+            if (validNumbers.length > 1) {
+              record.set("homeNumber", validNumbers[1]);
+            }
+          } else {
+            record.set("mobileNumber", null);
+          }
+        }
+        
         return record;
       });
     })

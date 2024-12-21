@@ -7,13 +7,32 @@ export default jobHandler("sheet:generateCustIds", async ({ context }, tick) => 
 
   try {
     const updates = [];
+    let processedCount = 0;
 
     const records = await Simplified.getAllRecords(sheetId);
     const { data: job } = await api.jobs.get(jobId);
     const input = job.input;
     const name = input.name;
 
+    // Keep track of the highest sequence per baseId
+    const baseIdMaxSeq = new Map<string, bigint>();
+
+    // First pass: find the highest sequence for each baseId
     records.forEach((record) => {
+      const id = record.id?.toString() || '';
+      if (id) {
+        const baseId = id.slice(0, 5);
+        const seqStr = id.slice(5);
+        const seq = seqStr ? BigInt(seqStr) : BigInt(0);
+        const currentMax = baseIdMaxSeq.get(baseId) || BigInt(0);
+        if (seq > currentMax) {
+          baseIdMaxSeq.set(baseId, seq);
+        }
+      }
+    });
+
+    // Process records in chunks to avoid memory issues
+    for (const record of records) {
       const newRecord: Record<string, any> = { _id: record._id };
       let updateRecord = false;
 
@@ -37,27 +56,36 @@ export default jobHandler("sheet:generateCustIds", async ({ context }, tick) => 
           .map(c => numpadMap[c] || '0')
           .join('');
 
-        // Find existing IDs with same base from both records and pending updates
-        const existingIds = [
-          ...records.map(r => r.id?.toString() || ''),
-          ...updates.map(r => r.id?.toString() || '')
-        ]
-          .filter(id => id.startsWith(baseId))
-          .map(id => parseInt(id.slice(-3)));
+        // Get the next sequence number for this baseId
+        let nextSeq = (baseIdMaxSeq.get(baseId) || BigInt(0)) + BigInt(1);
+        baseIdMaxSeq.set(baseId, nextSeq);
 
-        const seq = existingIds.length ? Math.max(...existingIds) + 1 : 1;
-        newRecord["id"] = parseInt(baseId + seq.toString().padStart(3,'0'));
+        // Create the new ID by concatenating baseId and sequence
+        const seqStr = nextSeq.toString();
+        newRecord["id"] = baseId + (seqStr.length <= 3 ? seqStr.padStart(3, '0') : seqStr);
         updateRecord = true;
+        processedCount++;
       }
       if (updateRecord) {
         updates.push(newRecord);
       }
-    });
-    if (updates.length > 0) {
-      await Simplified.updateAllRecords(sheetId, updates as any);
     }
-    await api.jobs.complete(jobId, { info: "Completed processing records" });
+
+    // Update records in chunks to avoid memory issues
+    const chunkSize = 1000;
+    for (let i = 0; i < updates.length; i += chunkSize) {
+      const chunk = updates.slice(i, i + chunkSize);
+      await Simplified.updateAllRecords(sheetId, chunk as any);
+    }
+
+    await api.jobs.complete(jobId, { 
+      info: `Completed processing ${processedCount} records` 
+    });
   } catch (error) {
-    await api.jobs.fail(jobId, { info: "Failed processing records" });
+    console.error('Error in generateCustIds:', error);
+    await api.jobs.fail(jobId, { 
+      info: `Failed processing records: ${error.message}` 
+    });
+    throw error;
   }
 });
