@@ -79,7 +79,7 @@ export function mergeData(records: Collection<Item>, key?: RefType) {
       let hasAnyMerge = false;
       for (const id of possibleBases) {
         const baseRecord = result.get(id);
-        if (baseRecord.hasConflict(record)) {
+        if (!baseRecord.hasConflict(record)) {
           result.set(id, baseRecord.merge(record));
           deletions.push(record.id);
           record.delete();
