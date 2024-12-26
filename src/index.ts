@@ -1,19 +1,20 @@
-import api from "@flatfile/api";
 import FlatfileListener from "@flatfile/listener";
-import { dedupePlugin } from "@flatfile/plugin-dedupe";
-import { jobHandler } from "@flatfile/plugin-job-handler";
 import { FlatfileRecord, bulkRecordHook } from "@flatfile/plugin-record-hook";
 import { configureSpace } from "@flatfile/plugin-space-configure";
-import { processRecords } from "@flatfile/util-common";
-import { stringify } from "csv-stringify/sync";
-import * as fs from "node:fs";
-import path from "node:path";
-import { addresses, customers, invoices, locations } from "./blueprints/sheets";
+import { xlsxExtractorPlugin } from "@flatfile/plugin-xlsx-extractor";
+import { addresses, customers, invoices } from "./blueprints/sheets";
 import autoFix from "./jobs/autoFix";
 import generateCustIds from "./jobs/generateCustIds";
 import getAddresses from "./jobs/getAddresses";
 import mergeRecords from "./jobs/mergeRecords";
-import { instrumentRequests } from "./instrument.requests";
+import { TransposeColumns, transposeHook } from "./jobs/transpose";
+import { TransposeExecute } from "./jobs/transpose-execute";
+import { MergeWorker } from "./support/dedupe-records";
+import { ExportXlsxWorker } from "./support/export-xlsx.worker";
+import { instrumentRequests } from "./support/instrument.requests";
+import "./support/requests/records/global.collect.macros";
+import { worker } from "./support/utils/job.worker";
+import { generateIdsPlugin, GenerateIdsJob } from "./jobs/preProGenerateIds";
 
 instrumentRequests();
 
@@ -48,17 +49,26 @@ const mustBeZeroFeilds = [
 ];
 
 export default function (listener: FlatfileListener) {
-  // listener.use(xlsxExtractorPlugin());
-  listener.use(dedupePlugin("dedupe", { on: "id" }));
+  listener.use(xlsxExtractorPlugin());
+  listener.use(worker(MergeWorker));
+  listener.use(worker(ExportXlsxWorker));
+
+  listener.use(transposeHook);
+  listener.use(worker(TransposeColumns));
+  listener.use(worker(TransposeExecute));
+
+  listener.use(worker(GenerateIdsJob));
+  listener.use(generateIdsPlugin());
+
   listener.use(
     configureSpace({
       workbooks: [
         {
           name: "Sera Workbook",
-          sheets: [customers, addresses, invoices, locations],
+          sheets: [customers, addresses, invoices],
           actions: [
             {
-              operation: "submitActionBg",
+              operation: "export-xlsx",
               mode: "foreground",
               label: "Download",
               primary: true,
@@ -82,118 +92,73 @@ export default function (listener: FlatfileListener) {
     })
   );
 
-  listener.use(
-    jobHandler("workbook:submitActionBg", async (event, tick) => {
-      try {
-        await tick(10, "Starting Customers and Invoices download...");
-
-        const { environmentId, spaceId, workbookId } = event.context;
-        console.log({ environmentId, spaceId, workbookId });
-        const { data: sheets } = await api.sheets.list({ workbookId });
-        const customerSheet = sheets.find(
-          (sheet) => sheet.slug === "customers"
-        );
-        const invoiceSheet = sheets.find((sheet) => sheet.slug === "invoices");
-
-        const invFields = invoiceSheet.config.fields;
-        const invHeader = invFields.map((field) => field.key);
-        const invHeaderLabels = invFields.map((field) => field.label);
-        const timestamp = new Date().toISOString();
-
-        const invFileName = `${invoiceSheet.slug}-${timestamp}.csv`;
-        const invFilePath = path.join("/tmp", invFileName);
-
-        await tick(20, "Writing Invoices CSV headers...");
-        const invHeaderContent = stringify([invHeaderLabels], {
-          delimiter: ",",
-        });
-        fs.writeFileSync(invFilePath, invHeaderContent);
-
-        await tick(30, "Writing Invoices CSV rows...");
-        await processRecords(
-          invoiceSheet.id,
-          async (records, pageNumber, totalPageCount) => {
-            const rows = records.map((record) =>
-              invHeader.map((key) => record.values[key].value)
-            );
-
-            const invCsvContent = stringify(rows, {
-              delimiter: ",",
-            });
-            fs.appendFileSync(invFilePath, invCsvContent);
-          }
-        );
-
-        await tick(40, "Uploading Invoices CSV...");
-        const invReader = fs.createReadStream(invFilePath);
-        const { data: invExportFile } = await api.files.upload(invReader, {
-          spaceId,
-          environmentId,
-          mode: "export",
-        });
-
-        await tick(50, "Writing Customers CSV headers...");
-        const custFields = customerSheet.config.fields;
-        const custHeader = custFields.map((field) => field.key);
-        const custHeaderLabels = custFields.map((field) => field.label);
-
-        const custFileName = `${customerSheet.slug}-${timestamp}.csv`;
-        const custFilePath = path.join("/tmp", custFileName);
-
-        await tick(60, "Writing Customers CSV headers...");
-        const custHeaderContent = stringify([custHeaderLabels], {
-          delimiter: ",",
-        });
-        fs.writeFileSync(custFilePath, custHeaderContent);
-
-        await tick(70, "Writing Customers CSV rows...");
-        await processRecords(
-          customerSheet.id,
-          async (records, pageNumber, totalPageCount) => {
-            const rows = records.map((record) =>
-              custHeader.map((key) => record.values[key].value)
-            );
-
-            const custCsvContent = stringify(rows, {
-              delimiter: ",",
-            });
-            fs.appendFileSync(custFilePath, custCsvContent);
-          }
-        );
-
-        await tick(80, "Uploading Customers CSV...");
-        const custReader = fs.createReadStream(custFilePath);
-        const { data: custExportFile } = await api.files.upload(custReader, {
-          spaceId,
-          environmentId,
-          mode: "export",
-        });
-
-        await tick(90, "Successfully downloaded CSV files");
-
-        return {
-          outcome: {
-            message: `Successfully downloaded CSV files`,
-            next: {
-              type: "files",
-              files: [
-                { fileId: invExportFile.id },
-                { fileId: custExportFile.id },
-              ],
-            },
-          },
-        };
-      } catch (error) {
-        console.error("Error in submitActionBg job:", error);
-        throw error;
-      }
-    })
-  );
-
   listener.use(autoFix);
   listener.use(getAddresses);
   listener.use(generateCustIds);
   listener.use(mergeRecords);
+
+  listener.use(
+    bulkRecordHook("addresses", (records: FlatfileRecord[]) => {
+      records.map((record) => {
+        const isBilling = record.get("isBilling") as string;
+
+        if (isBilling && isBilling === "Billing") {
+          record.set("isBilling", true);
+        } else {
+          record.set("isBilling", null);
+        }
+
+        return record;
+      });
+    })
+  );
+
+  listener.use(
+    bulkRecordHook("customers", (records: FlatfileRecord[]) => {
+      records.map((record) => {
+        // Handle display name and name splitting
+        const displayName = record.get("displayName") as string;
+        if (displayName) {
+          const trimmedName = displayName.trim();
+          record.set("displayName", trimmedName);
+          const nameParts = trimmedName.split(' ');
+          if (nameParts.length > 0) {
+            record.set("firstName", nameParts[0]);
+            if (nameParts.length > 1) {
+              record.set("lastName", nameParts.slice(1).join(' '));
+            }
+          }
+        }
+
+        // Handle phone numbers
+        const mobileNumber = record.get("mobileNumber") as string;
+        console.log({mobileNumber})
+        if (mobileNumber) {
+          // Split by comma and map to array of phone numbers or null
+          const phoneNumbers = mobileNumber.split(',')
+            .map(num => {
+              const trimmed = num.trim();
+              return trimmed && trimmed !== ',' ? trimmed : null;
+            })
+            .filter(num => num !== undefined); // Keep null values but remove undefined
+
+          // Find first two available numbers
+          const validNumbers = phoneNumbers.filter(num => num !== null);
+          
+          if (validNumbers.length > 0) {
+            record.set("mobileNumber", validNumbers[0]);
+            if (validNumbers.length > 1) {
+              record.set("homeNumber", validNumbers[1]);
+            }
+          } else {
+            record.set("mobileNumber", null);
+          }
+        }
+        
+        return record;
+      });
+    })
+  );
 
   listener.use(
     bulkRecordHook("invoices", (records: FlatfileRecord[]) => {

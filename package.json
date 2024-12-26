@@ -27,17 +27,22 @@
     "async": "^3.2.5",
     "axios": "^1.5.0",
     "chrono-node": "^2.7.7",
+    "collect.js": "^4.36.1",
     "csv-parse": "^5.5.5",
     "csv-stringify": "^6.4.6",
     "csv-writer": "^1.6.0",
     "csvtojson": "^2.0.10",
     "date-fns": "^4.1.0",
+    "extendable-error": "^0.1.7",
     "flatfile": "^3.5.9",
     "form-data": "^4.0.0",
     "fs": "^0.0.1-security",
+    "jsonlines": "^0.1.1",
+    "modern-async": "^2.0.4",
     "os": "^0.1.2",
     "path": "^0.12.7",
-    "utils": "^0.3.1"
+    "utils": "^0.3.1",
+    "xlsx": "^0.20.2"
   },
   "devDependencies": {
     "@types/node": "^18.16.0"

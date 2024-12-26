@@ -14,6 +14,9 @@ export const addresses: Flatfile.SheetConfig = {
         key: "id",
         relationship: "has-one",
       },
+      metadata: {
+        is_dedupe_field: true,
+      },
       constraints: [
         {
           type: "required",
@@ -24,16 +27,25 @@ export const addresses: Flatfile.SheetConfig = {
       key: "streetLine1",
       type: "string",
       label: "Street Line 1",
+      metadata: {
+        is_dedupe_field: true,
+      },
     },
     {
       key: "streetLine2",
       type: "string",
       label: "Street Line 2",
+      metadata: {
+        is_dedupe_field: true,
+      },
     },
     {
       key: "city",
       type: "string",
       label: "City",
+      metadata: {
+        is_dedupe_field: true,
+      },
     },
     {
       key: "state",
@@ -42,26 +54,35 @@ export const addresses: Flatfile.SheetConfig = {
       config: {
         options: states,
       },
+      metadata: {
+        is_dedupe_field: true,
+      },
     },
     {
       key: "postalCode",
       type: "string",
       label: "Postal Code",
+      metadata: {
+        is_dedupe_field: true,
+      },
     },
     {
       key: "isBilling",
       type: "boolean",
-      label: "Is Billing Address",
-    },
-    {
-      key: "isPrimary",
-      type: "boolean",
-      label: "Is Primary Address",
+      label: "Billing?",
     },
     {
       key: "notes",
       type: "string",
       label: "Notes",
+    },
+  ],
+  actions: [
+    {
+      operation: "dedupe",
+      mode: "foreground",
+      label: "Deduplicate",
+      primary: true,
     },
   ],
 };
@@ -182,23 +203,55 @@ export const customers: Flatfile.SheetConfig = {
     },
   ],
   actions: [
-    {
-      operation: "getAddresses",
-      mode: "background",
-      label: "Get Addresses",
-      primary: true,
-    },
+    // {
+    //   operation: "getAddresses",
+    //   mode: "background",
+    //   label: "Get Addresses",
+    //   primary: true,
+    // },
     {
       operation: "dedupe",
       mode: "foreground",
       label: "Deduplicate",
       primary: true,
+      inputForm: {
+        type: "simple",
+        fields: [
+          {
+            type: "enum",
+            config: {
+              options: [
+                { value: "id", label: "ID" },
+                { value: "displayName", label: "Display Name" },
+                { value: "mobileNumber", label: "Mobile Number" },
+                { value: "homeNumber", label: "Home Number" },
+                { value: "workNumber", label: "Work Number" },
+                { value: "email", label: "Email" },
+                { value: "company", label: "Company" },
+              ],
+            },
+            key: "on",
+            label: "Dedupe On",
+          },
+        ],
+      },
     },
     {
       operation: "generateCustIds",
       mode: "background",
       label: "Generate IDs",
       primary: true,
+      inputForm: {
+        type: "simple",
+        fields: [
+          {
+            type: "string",
+            key: "name",
+            label: "Name",
+            description: "What name would you like to use to generate the IDs?",
+          },
+        ],
+      },    
     },
   ],
 };
@@ -486,78 +539,6 @@ export const invoices: Flatfile.SheetConfig = {
       mode: "background",
       label: "Merge Records",
       primary: true,
-    },
-  ],
-};
-
-export const locations: Flatfile.SheetConfig = {
-  name: "[REF] Locations",
-  slug: "locations",
-  fields: [
-    {
-      key: "is_active",
-      label: "Is Active",
-      type: "string",
-    },
-    {
-      key: "customer_name",
-      label: "Customer Name",
-      type: "string",
-    },
-    {
-      key: "customer_parent_name",
-      label: "Customer Parent Name",
-      type: "string",
-    },
-    {
-      key: "primary_location",
-      label: "Primary Location",
-      type: "string",
-    },
-    {
-      key: "billing_location",
-      label: "Billing Location",
-      type: "string",
-    },
-    {
-      key: "location_name",
-      label: "Location Name",
-      type: "string",
-    },
-    {
-      key: "address_1",
-      label: "Address 1",
-      type: "string",
-    },
-    {
-      key: "address_2",
-      label: "Address 2",
-      type: "string",
-    },
-    {
-      key: "city",
-      label: "City",
-      type: "string",
-    },
-    {
-      key: "state_province",
-      label: "State/Province",
-      type: "string",
-    },
-    {
-      key: "zip_postal_code",
-      label: "Zip/Postal Code",
-      type: "string",
-    },
-    {
-      key: "is_gated_property",
-      label: "Is Gated Property",
-      type: "string",
-    },
-    {
-      key: "gate_access_instructions",
-      label: "Gate Access Instructions",
-      type: "string",
     },
   ],
 };
