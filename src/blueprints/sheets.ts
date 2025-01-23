@@ -24,6 +24,16 @@ export const addresses: Flatfile.SheetConfig = {
       ],
     },
     {
+      key: "displayName",
+      type: "reference",
+      label: "Display Name [Ref]",
+      config: {
+        ref: "customers",
+        key: "displayName",
+        relationship: "has-one",
+      },
+    },
+    {
       key: "streetLine1",
       type: "string",
       label: "Street Line 1",
@@ -251,7 +261,7 @@ export const customers: Flatfile.SheetConfig = {
             description: "What name would you like to use to generate the IDs?",
           },
         ],
-      },    
+      },
     },
   ],
 };

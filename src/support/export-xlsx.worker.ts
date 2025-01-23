@@ -143,7 +143,9 @@ export class ExportXlsxWorker extends WorkbookJobWorker {
     );
 
     const processedAddressFields = addressFields
-      .filter((field) => field.key !== "customerId")
+      .filter(
+        (field) => field.key !== "customerId" && field.key !== "displayName"
+      )
       .map((field) => ({ key: field.key, label: field.label }));
 
     // Process customer records
