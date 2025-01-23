@@ -100,12 +100,24 @@ export default function (listener: FlatfileListener) {
   listener.use(
     bulkRecordHook("addresses", (records: FlatfileRecord[]) => {
       records.map((record) => {
-        const isBilling = record.get("isBilling") as string;
+        const isBilling = record.get("isBilling");
 
-        if (isBilling && isBilling === "Billing") {
-          record.set("isBilling", true);
-        } else {
-          record.set("isBilling", null);
+        if (typeof isBilling === "string") {
+          if (isBilling.toLowerCase() === "billing") {
+            record.set("isBilling", true);
+          } else {
+            record.set("isBilling", null);
+          }
+        }
+
+        if (!record.get("customerId")) {
+          // Try to match customerId based on displayName
+          const matchedIDFromDisplayName =
+            record.getLinks("displayName")[0]?.["id"];
+
+          if (matchedIDFromDisplayName) {
+            record.set("customerId", matchedIDFromDisplayName);
+          }
         }
 
         return record;
@@ -121,30 +133,31 @@ export default function (listener: FlatfileListener) {
         if (displayName) {
           const trimmedName = displayName.trim();
           record.set("displayName", trimmedName);
-          const nameParts = trimmedName.split(' ');
+          const nameParts = trimmedName.split(" ");
           if (nameParts.length > 0) {
             record.set("firstName", nameParts[0]);
             if (nameParts.length > 1) {
-              record.set("lastName", nameParts.slice(1).join(' '));
+              record.set("lastName", nameParts.slice(1).join(" "));
             }
           }
         }
 
         // Handle phone numbers
         const mobileNumber = record.get("mobileNumber") as string;
-        console.log({mobileNumber})
+        console.log({ mobileNumber });
         if (mobileNumber) {
           // Split by comma and map to array of phone numbers or null
-          const phoneNumbers = mobileNumber.split(',')
-            .map(num => {
+          const phoneNumbers = mobileNumber
+            .split(",")
+            .map((num) => {
               const trimmed = num.trim();
-              return trimmed && trimmed !== ',' ? trimmed : null;
+              return trimmed && trimmed !== "," ? trimmed : null;
             })
-            .filter(num => num !== undefined); // Keep null values but remove undefined
+            .filter((num) => num !== undefined); // Keep null values but remove undefined
 
           // Find first two available numbers
-          const validNumbers = phoneNumbers.filter(num => num !== null);
-          
+          const validNumbers = phoneNumbers.filter((num) => num !== null);
+
           if (validNumbers.length > 0) {
             record.set("mobileNumber", validNumbers[0]);
             if (validNumbers.length > 1) {
@@ -154,7 +167,7 @@ export default function (listener: FlatfileListener) {
             record.set("mobileNumber", null);
           }
         }
-        
+
         return record;
       });
     })

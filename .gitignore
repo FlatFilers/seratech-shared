@@ -5,10 +5,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
-<<<<<<< HEAD
 .pnpm-debug.log*
-=======
->>>>>>> e65fb31 (restructure sheets)
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
@@ -45,13 +42,10 @@ build/Release
 node_modules/
 jspm_packages/
 
-<<<<<<< HEAD
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
-=======
 # TypeScript v1 declaration files
 typings/
->>>>>>> e65fb31 (restructure sheets)
 
 # TypeScript cache
 *.tsbuildinfo
@@ -62,12 +56,9 @@ typings/
 # Optional eslint cache
 .eslintcache
 
-<<<<<<< HEAD
 # Optional stylelint cache
 .stylelintcache
 
-=======
->>>>>>> e65fb31 (restructure sheets)
 # Microbundle cache
 .rpt2_cache/
 .rts2_cache_cjs/
@@ -83,7 +74,6 @@ typings/
 # Yarn Integrity file
 .yarn-integrity
 
-<<<<<<< HEAD
 # dotenv environment variable files
 .env
 .env.development.local
@@ -98,7 +88,6 @@ typings/
 # Next.js build output
 .next
 out
-=======
 # dotenv environment variables file
 .env
 .env.test
@@ -108,7 +97,6 @@ out
 
 # Next.js build output
 .next
->>>>>>> e65fb31 (restructure sheets)
 
 # Nuxt.js build / generate output
 .nuxt
@@ -116,18 +104,13 @@ dist
 
 # Gatsby files
 .cache/
-<<<<<<< HEAD
 # Comment in the public line in if your project uses Gatsby and not Next.js
-=======
-# Comment in the public line in if your project uses Gatsby and *not* Next.js
->>>>>>> e65fb31 (restructure sheets)
 # https://nextjs.org/blog/next-9-1#public-directory-support
 # public
 
 # vuepress build output
 .vuepress/dist
 
-<<<<<<< HEAD
 # vuepress v2.x temp and cache directory
 .temp
 .cache
@@ -135,8 +118,6 @@ dist
 # Docusaurus cache and generated files
 .docusaurus
 
-=======
->>>>>>> e65fb31 (restructure sheets)
 # Serverless directories
 .serverless/
 
@@ -149,7 +130,6 @@ dist
 # TernJS port file
 .tern-port
 
-<<<<<<< HEAD
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
@@ -159,7 +139,6 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
-=======
 
 #FF
 .flatfilerc
@@ -167,6 +146,3 @@ dist
 .idea
 .DS_Store
 
-
-package-lock.json
->>>>>>> e65fb31 (restructure sheets)
