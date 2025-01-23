@@ -113,7 +113,7 @@ export default function (listener: FlatfileListener) {
         if (!record.get("customerId")) {
           // Try to match customerId based on displayName
           const matchedIDFromDisplayName =
-            record.getLinks("displayName")[0]?.["id"];
+            record.getLinks("refDisplayName")[0]?.["id"];
 
           if (matchedIDFromDisplayName) {
             record.set("customerId", matchedIDFromDisplayName);
