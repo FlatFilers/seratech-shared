@@ -144,7 +144,7 @@ export class ExportXlsxWorker extends WorkbookJobWorker {
 
     const processedAddressFields = addressFields
       .filter(
-        (field) => field.key !== "customerId" && field.key !== "displayName"
+        (field) => field.key !== "customerId" && field.key !== "refDisplayName"
       )
       .map((field) => ({ key: field.key, label: field.label }));
 

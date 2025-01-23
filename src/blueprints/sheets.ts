@@ -24,7 +24,7 @@ export const addresses: Flatfile.SheetConfig = {
       ],
     },
     {
-      key: "displayName",
+      key: "refDisplayName",
       type: "reference",
       label: "Display Name [Ref]",
       config: {
