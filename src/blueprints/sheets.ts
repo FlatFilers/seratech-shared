@@ -95,6 +95,14 @@ export const addresses: Flatfile.SheetConfig = {
       primary: true,
     },
   ],
+  constraints: [
+    {
+      name: "Unique Address",
+      fields: ["customerId", "streetLine1"],
+      type: "unique",
+      strategy: "concat",
+    },
+  ],
 };
 
 export const customers: Flatfile.SheetConfig = {

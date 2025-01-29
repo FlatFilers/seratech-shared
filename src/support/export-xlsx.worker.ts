@@ -69,7 +69,7 @@ export class ExportXlsxWorker extends WorkbookJobWorker {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
 
     const fileName = `${type}_export_${
-      new Date().toISOString().split("T")[0]
+      new Date().toISOString().replace('T', '_').split('.')[0]
     }.xlsx`;
     const tempDir = os.tmpdir();
 
