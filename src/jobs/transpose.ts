@@ -172,7 +172,7 @@ appear that you do not want in the group, toggle them off, or inversely add more
       sheetId: workbook.sheets[0].id,
     });
 
-    await this.progress.report("Analying...", 50);
+    await this.progress.report("Analyzing...", 50);
 
     const claudeApiKey = await this.event.secrets("CLAUDE_API_KEY");
     await processRecords(claudeApiKey, records);

@@ -333,13 +333,8 @@ export const invoices: Flatfile.SheetConfig = {
     },
     {
       key: "customer",
-      type: "reference",
+      type: "string",
       label: "Customer",
-      config: {
-        ref: "customers",
-        key: "displayName",
-        relationship: "has-one",
-      },
     },
     {
       key: "firstName",
