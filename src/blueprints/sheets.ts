@@ -333,8 +333,13 @@ export const invoices: Flatfile.SheetConfig = {
     },
     {
       key: "customer",
-      type: "string",
+      type: "reference",
       label: "Customer",
+      config: {
+        ref: "addresses",
+        key: "refDisplayName",
+        relationship: "has-one",
+      },
     },
     {
       key: "firstName",
@@ -448,6 +453,11 @@ export const invoices: Flatfile.SheetConfig = {
       key: "paidAmount",
       type: "number",
       label: "Paid Amount",
+      constraints: [
+        {
+          type: "required",
+        },
+      ],
     },
     {
       key: "due",

@@ -15,6 +15,9 @@ import { instrumentRequests } from "./support/instrument.requests";
 import "./support/requests/records/global.collect.macros";
 import { worker } from "./support/utils/job.worker";
 import { generateIdsPlugin, GenerateIdsJob } from "./jobs/preProGenerateIds";
+import * as chrono from "chrono-node";
+import { format } from "date-fns";
+import { enUS } from "date-fns/locale";
 
 instrumentRequests();
 
@@ -47,6 +50,41 @@ const mustBeZeroFeilds = [
   "tax",
   "taxableAmount",
 ];
+
+// Helper function to normalize date to M/d/yy HH:mm format
+function normalizeDateWithTime(dateString: string): string | null {
+  try {
+    const parsedDate = chrono.parseDate(dateString);
+    if (parsedDate) {
+      // Format with time in 24-hour format
+      return format(parsedDate, "M/d/yy HH:mm", {
+        locale: enUS,
+      });
+    }
+    return null;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+// Helper function to normalize finished date to yyyy-mm-dd hh:mmam/pm format
+function normalizeFinishedDate(dateString: string): string | null {
+  try {
+    const parsedDate = chrono.parseDate(dateString);
+    if (parsedDate) {
+      const formattedDate = format(parsedDate, "yyyy-MM-dd hh:mma", {
+        locale: enUS,
+      }).toLowerCase();
+
+      return formattedDate;
+    }
+    return null;
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
 
 export default function (listener: FlatfileListener) {
   listener.use(xlsxExtractorPlugin());
@@ -179,27 +217,68 @@ export default function (listener: FlatfileListener) {
         const createdAt = record.get("createdAt") as string;
         const date = record.get("date") as string;
         const finishedAt = record.get("finished") as string;
-
+        const customerName = record.get("customer") as string;
+        const invoiceValue = record.get("invoice");
+        const amount = record.get("amount");
         const dateRegex = /([0-9]+\/[0-9]+\/[0-9][0-9] [0-2][0-9]:[0-5][0-9]$)/;
         const finishedRegex =
           /([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-1][0-9]:[0-5][0-9](?:am|pm)$)/i;
 
+        // Copy invoice value to hcpId if it exists
+        if (invoiceValue) {
+          record.set("hcpId", invoiceValue);
+        }
+
+        // Copy amount to subtotal if amount exists
+        if (amount) {
+          record.set("subtotal", amount);
+        }
+
+        // Handle display name and name splitting
+        if (customerName) {
+          const trimmedName = customerName.trim();
+          record.set("customer", trimmedName);
+          const nameParts = trimmedName.split(" ");
+          if (nameParts.length > 0) {
+            record.set("firstName", nameParts[0]);
+            if (nameParts.length > 1) {
+              record.set("lastName", nameParts.slice(1).join(" "));
+            }
+          }
+        }
+
+        // Transform createdAt to correct format and copy to date and endTime
         if (createdAt) {
           if (!dateRegex.test(createdAt)) {
-            record.addError("createdAt", `Must be in M/d/yy HH:mm format`);
+            const normalizedCreatedAt = normalizeDateWithTime(createdAt);
+            if (normalizedCreatedAt) {
+              record.set("createdAt", normalizedCreatedAt);
+              record.set("date", normalizedCreatedAt);
+              record.set("endTime", normalizedCreatedAt);
+            } else {
+              record.addError("createdAt", `Must be in M/d/yy HH:mm format`);
+            }
+          } else {
+            // If createdAt is already in the correct format, still copy to date and endTime
+            record.set("date", createdAt);
+            record.set("endTime", createdAt);
+          }
+          if (!finishedRegex.test(finishedAt)) {
+            const normalizedFinished = normalizeFinishedDate(createdAt);
+            if (normalizedFinished) {
+              record.set("finished", normalizedFinished);
+            } else {
+              record.addError(
+                "finished",
+                `Must be in yyyy-mm-dd hh:mmam/pm format`
+              );
+            }
           }
         }
-        if (date) {
+        // Only check date format if createdAt wasn't processed (to avoid duplicate errors)
+        else if (date) {
           if (!dateRegex.test(date)) {
             record.addError("date", `Must be in M/d/yy HH:mm format`);
-          }
-        }
-        if (finishedAt) {
-          if (!finishedRegex.test(finishedAt)) {
-            record.addError(
-              "finished",
-              `Must be in yyyy-mm-dd hh:mmam/pm format`
-            );
           }
         }
 
@@ -217,23 +296,37 @@ export default function (listener: FlatfileListener) {
 
         const referenceFieldKey = "customer";
         const links = record.getLinks(referenceFieldKey);
-        const lookupFirstNameValue = links?.[0]?.["firstName"];
-        const lookupLastNameValue = links?.[0]?.["lastName"];
-        const lookupLastEmailValue = links?.[0]?.["email"];
 
-        if (lookupFirstNameValue) {
-          record.set("firstName", lookupFirstNameValue);
-          record.addInfo("firstName", `firstName set based on customer.`);
-        }
+        // Get address fields from the address reference if customer is present
+        if (links && links.length > 0) {
+          // Get address values directly from the link, which is from the addresses sheet
+          const streetValue = links?.[0]?.["streetLine1"];
+          const streetLine2Value = links?.[0]?.["streetLine2"];
+          const cityValue = links?.[0]?.["city"];
+          const stateValue = links?.[0]?.["state"];
+          const zipValue = links?.[0]?.["postalCode"];
 
-        if (lookupLastNameValue) {
-          record.set("lastName", lookupLastNameValue);
-          record.addInfo("lastName", `lastName set based on customer.`);
-        }
+          // Set address values if they exist
+          if (streetValue) {
+            record.set("street", streetValue);
+          }
 
-        if (lookupLastEmailValue) {
-          record.set("email", lookupLastEmailValue);
-          record.addInfo("email", `email set based on customer.`);
+          if (streetLine2Value) {
+            record.set("streetLine2", streetLine2Value);
+          }
+
+          if (cityValue) {
+            record.set("city", cityValue);
+          }
+
+          if (stateValue) {
+            record.set("state", stateValue);
+          }
+
+          if (zipValue) {
+            record.set("zip", zipValue);
+            record.addInfo("zip", "Zip code set based on customer address.");
+          }
         }
 
         return record;
