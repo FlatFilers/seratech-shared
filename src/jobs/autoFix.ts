@@ -1,9 +1,6 @@
 import api from "@flatfile/api";
 import { jobHandler } from "@flatfile/plugin-job-handler";
 import { Simplified } from "@flatfile/util-common";
-import * as chrono from "chrono-node";
-import { format } from "date-fns";
-import { enUS } from "date-fns/locale";
 const leaveBlankFields = [
   "travelDuration",
   "onJobDuration",
@@ -47,32 +44,6 @@ export default jobHandler("sheet:auto-fix", async ({ context }, tick) => {
       const newRecord: Record<string, any> = { _id: record._id };
       let updateRecord = false;
 
-      const date = record.date as string;
-      const finished = record.finished as string;
-      const createdAt = record.createdAt as string;
-
-      if (!createdAt && date) {
-        const endTime = record.endTime as string;
-        const normalizedDate = normalizeDate(date);
-        if (normalizedDate) {
-          // Extract just the date portion from normalized date
-          // Use endTime if available, otherwise use 00:00
-          const timePart = endTime || "00:00";
-          newRecord["date"] = `${normalizedDate} ${timePart}`;
-          newRecord["createdAt"] = `${normalizedDate} ${timePart}`;
-          newRecord["endTime"] = `${normalizedDate} ${timePart}`;
-          updateRecord = true;
-        }
-      }
-
-      if (finished) {
-        const normalizedFinished = normalizeFinishedDate(finished);
-        if (normalizedFinished) {
-          newRecord["finished"] = normalizedFinished;
-          updateRecord = true;
-        }
-      }
-
       leaveBlankFields.forEach((field) => {
         if (record[field] !== "") {
           newRecord[field] = null;
@@ -100,46 +71,3 @@ export default jobHandler("sheet:auto-fix", async ({ context }, tick) => {
     await api.jobs.fail(jobId, { info: "Failed processing records" });
   }
 });
-
-export interface DateFormatNormalizerConfig {
-  sheetSlug?: string;
-  dateFields: string[];
-  outputFormat: string;
-  includeTime: boolean;
-  locale?: string;
-}
-
-export function normalizeDate(dateString: string): string | null {
-  try {
-    const parsedDate = chrono.parseDate(dateString);
-    if (parsedDate) {
-      const formattedDate = format(parsedDate, "M/d/yy", {
-        locale: enUS,
-      });
-
-      // If time should not be included, truncate the formatted date to just the date part
-      return formattedDate.split(" ")[0];
-    }
-    return null;
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}
-
-export function normalizeFinishedDate(dateString: string): string | null {
-  try {
-    const parsedDate = chrono.parseDate(dateString);
-    if (parsedDate) {
-      const formattedDate = format(parsedDate, "yyyy-MM-dd hh:mma", {
-        locale: enUS,
-      }).toLowerCase();
-
-      return formattedDate;
-    }
-    return null;
-  } catch (error) {
-    console.error(error);
-    return null;
-  }
-}

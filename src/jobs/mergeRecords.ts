@@ -31,15 +31,44 @@ export default jobHandler("sheet:mergeRecords", async ({ context }, tick) => {
       // Use first record as base and merge others into it
       const mergedRecord = { ...group[0] };
       
+      // Create an array to collect all lineItems
+      let allLineItems = [];
+      if (mergedRecord.lineItems) {
+        // Add base record's lineItems if they exist
+        allLineItems = Array.isArray(mergedRecord.lineItems) 
+          ? [...mergedRecord.lineItems] 
+          : [mergedRecord.lineItems];
+      }
+      
+      // Initialize total amount with the base record's amount (if it exists)
+      let totalAmount = 0;
+      if (mergedRecord.amount && !isNaN(parseFloat(mergedRecord.amount))) {
+        totalAmount = parseFloat(mergedRecord.amount);
+      }
+      
       // Add remaining records' IDs to delete list and merge their fields
       for (let i = 1; i < group.length; i++) {
         const record = group[i];
         delete_ids.push(record._id);
         
+        // Collect lineItems from this record if they exist
+        if (record.lineItems) {
+          const recordLineItems = Array.isArray(record.lineItems) 
+            ? record.lineItems 
+            : [record.lineItems];
+          allLineItems = [...allLineItems, ...recordLineItems];
+        }
+        
+        // Add this record's amount to the total (if it exists and is a number)
+        if (record.amount && !isNaN(parseFloat(record.amount))) {
+          totalAmount += parseFloat(record.amount);
+        }
+        
         // Go through all fields in the record
         Object.keys(record).forEach(field => {
           // Skip _id field since we want to keep the first record's ID
-          if (field === '_id') return;
+          // Also skip lineItems and amount as we're handling those separately
+          if (field === '_id' || field === 'lineItems' || field === 'amount') return;
           
           // If field doesn't exist or is empty/null in merged record,
           // take value from current record
@@ -47,6 +76,16 @@ export default jobHandler("sheet:mergeRecords", async ({ context }, tick) => {
             mergedRecord[field] = record[field];
           }
         });
+      }
+      
+      // Set the concatenated lineItems on the merged record
+      if (allLineItems.length > 0) {
+        mergedRecord.lineItems = allLineItems;
+      }
+      
+      // Set the total amount on the merged record (if there was at least one valid amount)
+      if (totalAmount > 0) {
+        mergedRecord.amount = totalAmount;
       }
 
       updates.push(mergedRecord);

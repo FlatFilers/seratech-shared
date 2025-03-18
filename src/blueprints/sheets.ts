@@ -551,12 +551,12 @@ export const invoices: Flatfile.SheetConfig = {
     },
   ],
   actions: [
-    {
-      operation: "auto-fix",
-      mode: "background",
-      label: "Autofix",
-      primary: true,
-    },
+    // {
+    //   operation: "auto-fix",
+    //   mode: "background",
+    //   label: "Autofix",
+    //   primary: true,
+    // },
     {
       operation: "mergeRecords",
       mode: "background",
