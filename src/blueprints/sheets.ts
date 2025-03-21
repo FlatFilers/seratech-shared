@@ -501,8 +501,13 @@ export const invoices: Flatfile.SheetConfig = {
     },
     {
       key: "jobStatus",
-      type: "string",
+      type: "enum",
       label: "Job Status",
+      config: {
+        options: [
+          { value: "DONE", label: "DONE" }
+        ],
+      },
     },
     {
       key: "finished",

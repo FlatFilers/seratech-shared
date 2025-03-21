@@ -220,6 +220,7 @@ export default function (listener: FlatfileListener) {
         const customerName = record.get("customer") as string;
         const invoiceValue = record.get("invoice");
         const amount = record.get("amount");
+        const paidAmount = record.get("paidAmount");
         const dateRegex = /([0-9]+\/[0-9]+\/[0-9][0-9] [0-2][0-9]:[0-5][0-9]$)/;
         const finishedRegex =
           /([0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9] [0-1][0-9]:[0-5][0-9](?:am|pm)$)/i;
@@ -232,6 +233,14 @@ export default function (listener: FlatfileListener) {
         // Copy amount to subtotal if amount exists
         if (amount) {
           record.set("subtotal", amount);
+        }
+
+        // Handle paidAmount field
+        if (paidAmount === "Paid" && amount) {
+          record.set("paidAmount", amount);
+        } else if (paidAmount === "Unpaid" && amount) {
+          record.set("due", amount);
+          record.set("paidAmount", 0);
         }
 
         // Handle display name and name splitting
@@ -284,13 +293,13 @@ export default function (listener: FlatfileListener) {
 
         for (const field of leaveBlankFields) {
           if (record.get(field) as string) {
-            record.addError(field, `${field} must be left blank`);
+            record.set(field, null);
           }
         }
 
         for (const field of mustBeZeroFeilds) {
-          if (record.get(field) !== 0) {
-            record.addError(field, `${field} must be 0`);
+          if (record.get(field) !== 0 && record.get(field) !== "0") {
+            record.set(field, 0);
           }
         }
 
